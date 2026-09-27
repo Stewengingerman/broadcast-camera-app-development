@@ -6,6 +6,7 @@ import {
   Camera,
   Download,
   FileAudio,
+  FolderOpen,
   Flag,
   FlagOff,
   Loader2,
@@ -187,6 +188,8 @@ export function AudioRecorder() {
     e.target.value = ''
     if (file) {
       setError(null)
+      stopPlayback()
+      invalidateMp3()
       loadAudio(file)
     }
   }
@@ -287,6 +290,15 @@ export function AudioRecorder() {
 
   return (
     <div className="flex h-dvh flex-col bg-background text-foreground">
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="audio/*,.mp3,.wav,.m4a,.aac,.ogg,.flac,.webm"
+        className="sr-only"
+        onChange={handleImport}
+        tabIndex={-1}
+        aria-hidden="true"
+      />
       <header className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
         <div className="flex items-center gap-2">
           <span
@@ -337,6 +349,7 @@ export function AudioRecorder() {
             onExport={exportMp3}
             onShare={shareMp3}
             onDiscard={discard}
+            onOpenFile={() => fileInputRef.current?.click()}
           />
         ) : (
           <section className="flex flex-1 flex-col items-center justify-center gap-8 px-4 py-8" aria-live="polite">
@@ -355,9 +368,21 @@ export function AudioRecorder() {
             </div>
 
             {phase === 'idle' && (
-              <p className="max-w-xs text-pretty text-center text-sm leading-relaxed text-muted-foreground">
-                Tryck på den röda knappen för att börja. Efteråt kan du klippa start och slut och spara som MP3.
-              </p>
+              <div className="flex flex-col items-center gap-4">
+                <p className="max-w-xs text-pretty text-center text-sm leading-relaxed text-muted-foreground">
+                  Tryck på den röda knappen för att spela in, eller öppna en befintlig ljudfil. Sedan kan du klippa start
+                  och slut och spara som MP3.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="flex items-center gap-2 rounded-full border border-border bg-card px-5 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-muted"
+                >
+                  <FolderOpen className="size-4" aria-hidden="true" />
+                  Öppna ljudfil
+                </button>
+                <span className="text-xs text-muted-foreground">MP3, WAV, M4A, OGG, FLAC</span>
+              </div>
             )}
           </section>
         )}
@@ -371,11 +396,10 @@ export function AudioRecorder() {
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
                 className="flex size-14 items-center justify-center rounded-full bg-muted text-foreground transition-colors hover:bg-muted/70"
-                aria-label="Importera ljudfil"
+                aria-label="Öppna ljudfil"
               >
                 <FileAudio className="size-6" />
               </button>
-              <input ref={fileInputRef} type="file" accept="audio/*" className="sr-only" onChange={handleImport} tabIndex={-1} />
               <RecordButton onClick={startRecording} />
               <span className="size-14" aria-hidden="true" />
             </>
@@ -447,6 +471,7 @@ type EditorProps = {
   onExport: () => void
   onShare: () => void
   onDiscard: () => void
+  onOpenFile: () => void
 }
 
 function EditorView({
@@ -468,6 +493,7 @@ function EditorView({
   onExport,
   onShare,
   onDiscard,
+  onOpenFile,
 }: EditorProps) {
   const encoding = encodeProgress !== null
   const length = range.end - range.start
@@ -645,14 +671,24 @@ function EditorView({
         )}
       </section>
 
-      <button
-        type="button"
-        onClick={onDiscard}
-        className="mb-[env(safe-area-inset-bottom)] flex items-center justify-center gap-2 py-3 text-sm text-muted-foreground transition-colors hover:text-destructive"
-      >
-        <Trash2 className="size-4" aria-hidden="true" />
-        Ny inspelning
-      </button>
+      <div className="mb-[env(safe-area-inset-bottom)] flex items-center justify-center gap-6">
+        <button
+          type="button"
+          onClick={onOpenFile}
+          className="flex items-center justify-center gap-2 py-3 text-sm text-muted-foreground transition-colors hover:text-foreground"
+        >
+          <FolderOpen className="size-4" aria-hidden="true" />
+          Öppna annan ljudfil
+        </button>
+        <button
+          type="button"
+          onClick={onDiscard}
+          className="flex items-center justify-center gap-2 py-3 text-sm text-muted-foreground transition-colors hover:text-destructive"
+        >
+          <Trash2 className="size-4" aria-hidden="true" />
+          Ny inspelning
+        </button>
+      </div>
     </div>
   )
 }
