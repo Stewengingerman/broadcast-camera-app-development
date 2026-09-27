@@ -2,8 +2,12 @@ import { Mp3Encoder } from '@breezystack/lamejs'
 
 const pad = (n: number) => String(n).padStart(2, '0')
 
+export function sermonBaseName(date = new Date()) {
+  return `predikan_${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
+}
+
 export function sermonFileName(date = new Date()) {
-  return `predikan_${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}.mp3`
+  return `${sermonBaseName(date)}.mp3`
 }
 
 export function formatTime(totalSeconds: number, withTenths = false) {

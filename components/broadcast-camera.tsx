@@ -75,6 +75,8 @@ export function BroadcastCamera() {
   const [zoom, setZoom] = useState<number>(1)
   const [showGrid, setShowGrid] = useState(true)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [flash, setFlash] = useState(false)
+  const [lastPhoto, setLastPhoto] = useState<{ blob: Blob; url: string; name: string } | null>(null)
 
   const [serverTally, setServerTally] = useState<Tally>('offline')
   const [demoTally, setDemoTally] = useState<Tally | null>(null)
@@ -282,6 +284,54 @@ export function BroadcastCamera() {
 
   const toggleDemo = (value: Tally) => setDemoTally((cur) => (cur === value ? null : value))
 
+  const takePhoto = useCallback(async () => {
+    const video = videoRef.current
+    if (!cameraActive || !video || !video.videoWidth) {
+      setCameraError('Aktivera kameran först för att ta foto.')
+      return
+    }
+    const vw = video.videoWidth
+    const vh = video.videoHeight
+    const sw = vw / zoom
+    const sh = vh / zoom
+    const canvas = document.createElement('canvas')
+    canvas.width = Math.round(sw)
+    canvas.height = Math.round(sh)
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+    ctx.drawImage(video, (vw - sw) / 2, (vh - sh) / 2, sw, sh, 0, 0, canvas.width, canvas.height)
+
+    setFlash(true)
+    setTimeout(() => setFlash(false), 150)
+
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.92))
+    if (!blob) return
+    const d = new Date()
+    const p = (n: number) => String(n).padStart(2, '0')
+    const name = `foto_${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}_${p(d.getHours())}-${p(d.getMinutes())}-${p(d.getSeconds())}.jpg`
+    const url = URL.createObjectURL(blob)
+    setLastPhoto((prev) => {
+      if (prev) URL.revokeObjectURL(prev.url)
+      return { blob, url, name }
+    })
+    const a = document.createElement('a')
+    a.href = url
+    a.download = name
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+  }, [cameraActive, zoom])
+
+  const sharePhoto = useCallback(async () => {
+    if (!lastPhoto) return
+    const file = new File([lastPhoto.blob], lastPhoto.name, { type: 'image/jpeg' })
+    if (navigator.canShare?.({ files: [file] })) {
+      await navigator.share({ files: [file], title: lastPhoto.name }).catch(() => undefined)
+    } else {
+      window.open(lastPhoto.url, '_blank')
+    }
+  }, [lastPhoto])
+
   const videoTransform = `scale(${zoom})${facingMode === 'user' ? ' scaleX(-1)' : ''}`
 
   return (
@@ -423,6 +473,32 @@ export function BroadcastCamera() {
             <Grid3x3 className="size-5" aria-hidden />
           </button>
         </div>
+
+        {/* Photo capture */}
+        <div className="absolute left-3 top-1/2 flex -translate-y-1/2 flex-col items-center gap-3">
+          <button
+            type="button"
+            onClick={() => void takePhoto()}
+            aria-label="Ta foto och spara på mobilen"
+            className="flex size-16 items-center justify-center rounded-full border-4 border-white/90 bg-zinc-950/40 backdrop-blur transition-transform active:scale-90"
+          >
+            <span className="size-11 rounded-full bg-white" />
+          </button>
+          {lastPhoto && (
+            <button
+              type="button"
+              onClick={() => void sharePhoto()}
+              aria-label={`Spara eller dela ${lastPhoto.name}`}
+              className="size-12 overflow-hidden rounded-lg border-2 border-white/80 bg-zinc-900"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element -- local object URL */}
+              <img src={lastPhoto.url} alt="" className="size-full object-cover" />
+            </button>
+          )}
+          {lastPhoto && <span className="font-mono text-[10px] tracking-wider text-white/70">{'SPARA'}</span>}
+        </div>
+
+        {flash && <div className="pointer-events-none absolute inset-0 bg-white/80" aria-hidden />}
       </section>
 
       {/* BOTTOM PANEL */}

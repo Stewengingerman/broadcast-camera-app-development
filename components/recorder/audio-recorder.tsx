@@ -21,6 +21,7 @@ import {
 import { computePeaks, encodeMp3, formatTime, sermonFileName } from '@/lib/audio'
 import { LiveMeter } from './live-meter'
 import { WaveformEditor } from './waveform-editor'
+import { TranscriptPanel } from './transcript-panel'
 
 type Phase = 'idle' | 'recording' | 'paused' | 'processing' | 'editing'
 type Bitrate = 96 | 128 | 192
@@ -670,6 +671,8 @@ function EditorView({
           </div>
         )}
       </section>
+
+      <TranscriptPanel key={`${range.start}-${range.end}`} buffer={buffer} start={range.start} end={range.end} />
 
       <div className="mb-[env(safe-area-inset-bottom)] flex items-center justify-center gap-6">
         <button
