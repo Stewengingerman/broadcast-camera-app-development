@@ -6,7 +6,9 @@ import {
   Camera,
   Download,
   FileAudio,
+  FileText,
   FolderOpen,
+  KeyRound,
   Flag,
   FlagOff,
   Loader2,
@@ -22,6 +24,7 @@ import { computePeaks, encodeMp3, formatTime, sermonFileName } from '@/lib/audio
 import { LiveMeter } from './live-meter'
 import { WaveformEditor } from './waveform-editor'
 import { TranscriptPanel } from './transcript-panel'
+import { ApiKeysDialog } from './api-keys-dialog'
 
 type Phase = 'idle' | 'recording' | 'paused' | 'processing' | 'editing'
 type Bitrate = 96 | 128 | 192
@@ -30,6 +33,8 @@ const MIME_CANDIDATES = ['audio/webm;codecs=opus', 'audio/mp4', 'audio/webm', 'a
 
 export function AudioRecorder() {
   const [phase, setPhase] = useState<Phase>('idle')
+  const [keysOpen, setKeysOpen] = useState(false)
+  const [subtitlesOnly, setSubtitlesOnly] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [elapsed, setElapsed] = useState(0)
   const [analyser, setAnalyser] = useState<AnalyserNode | null>(null)
@@ -308,14 +313,25 @@ export function AudioRecorder() {
           />
           <h1 className="text-sm font-semibold uppercase tracking-widest">Predikoinspelning</h1>
         </div>
-        <Link
-          href="/kamera"
-          className="flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-        >
-          <Camera className="size-4" aria-hidden="true" />
-          Kamera
-        </Link>
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() => setKeysOpen(true)}
+            className="flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          >
+            <KeyRound className="size-4" aria-hidden="true" />
+            AI-nycklar
+          </button>
+          <Link
+            href="/kamera"
+            className="flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          >
+            <Camera className="size-4" aria-hidden="true" />
+            Kamera
+          </Link>
+        </div>
       </header>
+      <ApiKeysDialog open={keysOpen} onClose={() => setKeysOpen(false)} />
 
       <main className="flex flex-1 flex-col overflow-y-auto">
         {error && (
@@ -351,7 +367,20 @@ export function AudioRecorder() {
             onShare={shareMp3}
             onDiscard={discard}
             onOpenFile={() => fileInputRef.current?.click()}
+            onManageKeys={() => setKeysOpen(true)}
           />
+        ) : subtitlesOnly && phase === 'idle' ? (
+          <div className="flex flex-col gap-4 p-4">
+            <TranscriptPanel buffer={null} onManageKeys={() => setKeysOpen(true)} />
+            <button
+              type="button"
+              onClick={() => setSubtitlesOnly(false)}
+              className="flex items-center justify-center gap-2 py-3 text-sm text-muted-foreground transition-colors hover:text-foreground"
+            >
+              <Mic className="size-4" aria-hidden="true" />
+              Tillbaka till inspelning
+            </button>
+          </div>
         ) : (
           <section className="flex flex-1 flex-col items-center justify-center gap-8 px-4 py-8" aria-live="polite">
             <div className="flex flex-col items-center gap-2">
@@ -383,6 +412,14 @@ export function AudioRecorder() {
                   Öppna ljudfil
                 </button>
                 <span className="text-xs text-muted-foreground">MP3, WAV, M4A, OGG, FLAC</span>
+                <button
+                  type="button"
+                  onClick={() => setSubtitlesOnly(true)}
+                  className="flex items-center gap-2 rounded-full px-5 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                >
+                  <FileText className="size-4" aria-hidden="true" />
+                  Redigera SRT-fil
+                </button>
               </div>
             )}
           </section>
@@ -473,6 +510,7 @@ type EditorProps = {
   onShare: () => void
   onDiscard: () => void
   onOpenFile: () => void
+  onManageKeys: () => void
 }
 
 function EditorView({
@@ -495,6 +533,7 @@ function EditorView({
   onShare,
   onDiscard,
   onOpenFile,
+  onManageKeys,
 }: EditorProps) {
   const encoding = encodeProgress !== null
   const length = range.end - range.start
@@ -672,7 +711,7 @@ function EditorView({
         )}
       </section>
 
-      <TranscriptPanel key={`${range.start}-${range.end}`} buffer={buffer} start={range.start} end={range.end} />
+      <TranscriptPanel buffer={buffer} start={range.start} end={range.end} onManageKeys={onManageKeys} />
 
       <div className="mb-[env(safe-area-inset-bottom)] flex items-center justify-center gap-6">
         <button

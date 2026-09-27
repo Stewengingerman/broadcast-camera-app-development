@@ -1,5 +1,6 @@
 import { encodeMp3 } from './audio'
 import type { Segment } from './srt'
+import type { ProviderId } from './providers'
 
 const CHUNK_SECONDS = 300
 const SAMPLE_RATE = 16000
@@ -17,11 +18,25 @@ async function renderChunk(buffer: AudioBuffer, start: number, length: number) {
   return encodeMp3(rendered, 0, rendered.duration, { kbps: KBPS, stereo: false })
 }
 
-async function transcribeChunk(blob: Blob, language: string, signal: AbortSignal) {
+type Options = {
+  language: string
+  provider: ProviderId
+  apiKey?: string
+  signal: AbortSignal
+  onProgress: (done: number, total: number) => void
+}
+
+async function transcribeChunk(blob: Blob, { language, provider, apiKey, signal }: Options) {
   const body = new FormData()
   body.append('audio', new File([blob], 'chunk.mp3', { type: 'audio/mpeg' }))
   body.append('language', language)
-  const res = await fetch('/api/transcribe', { method: 'POST', body, signal })
+  body.append('provider', provider)
+  const res = await fetch('/api/transcribe', {
+    method: 'POST',
+    body,
+    signal,
+    headers: apiKey ? { 'x-provider-key': apiKey } : undefined,
+  })
   const data = (await res.json().catch(() => ({}))) as { segments?: Segment[]; error?: string }
   if (!res.ok || !data.segments) throw new Error(data.error ?? `Serverfel (${res.status})`)
   return data.segments
@@ -35,8 +50,9 @@ export async function transcribeRange(
   buffer: AudioBuffer,
   start: number,
   end: number,
-  { language, signal, onProgress }: { language: string; signal: AbortSignal; onProgress: (done: number, total: number) => void },
+  options: Options,
 ) {
+  const { signal, onProgress } = options
   const chunks: { offset: number; length: number }[] = []
   for (let t = start; t < end - 0.25; t += CHUNK_SECONDS) {
     chunks.push({ offset: t - start, length: Math.min(CHUNK_SECONDS, end - t) })
@@ -53,7 +69,7 @@ export async function transcribeRange(
       const { offset, length } = chunks[index]
       const blob = await renderChunk(buffer, start + offset, length)
       signal.throwIfAborted()
-      const segments = await transcribeChunk(blob, language, signal)
+      const segments = await transcribeChunk(blob, options)
       results[index] = segments.map((s) => ({
         text: s.text,
         startSecond: Math.min(length, s.startSecond) + offset,
