@@ -1,5 +1,5 @@
-import { BroadcastCamera } from '@/components/broadcast-camera'
+import { AudioRecorder } from '@/components/recorder/audio-recorder'
 
 export default function Page() {
-  return <BroadcastCamera />
+  return <AudioRecorder />
 }
