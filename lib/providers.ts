@@ -43,6 +43,17 @@ export const PROVIDERS = [
 
 export type ProviderId = (typeof PROVIDERS)[number]['id']
 
+/** Approximate public list prices in USD per audio minute. */
+export const USD_PER_MINUTE: Record<ProviderId, number> = {
+  gateway: 0.006,
+  openai: 0.006,
+  groq: 0.111 / 60,
+  deepgram: 0.0043,
+  elevenlabs: 0.4 / 60,
+}
+
+export const DEFAULT_SEK_PER_USD = 9.5
+
 export const PROVIDER_IDS = PROVIDERS.map((p) => p.id) as ProviderId[]
 
 export function getProvider(id: ProviderId) {
