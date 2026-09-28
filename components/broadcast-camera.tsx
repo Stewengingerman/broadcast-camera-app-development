@@ -4,7 +4,10 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   Activity,
   Camera,
+  Check,
+  Copy,
   Gauge,
+  Globe,
   Grid3x3,
   MicOff,
   Play,
@@ -83,6 +86,10 @@ export function BroadcastCamera() {
   const [ping, setPing] = useState<number | null>(null)
   const [measuredFps, setMeasuredFps] = useState(0)
   const [sendError, setSendError] = useState(false)
+  const [publishWeb, setPublishWeb] = useState(true)
+  const [webError, setWebError] = useState(false)
+  const [viewerUrl, setViewerUrl] = useState('')
+  const [linkCopied, setLinkCopied] = useState(false)
 
   const tally: Tally = demoTally ?? (streaming ? serverTally : 'offline')
   const tallyStyle = TALLY_STYLES[tally]
@@ -243,6 +250,71 @@ export function BroadcastCamera() {
       setMeasuredFps(0)
     }
   }, [streaming, resolution, fps, quality, zoom, slot, baseUrl])
+
+  useEffect(() => {
+    setViewerUrl(`${window.location.origin}/live?slot=${slot}`)
+  }, [slot])
+
+  // Web relay: downscaled frames to this app's own /live page (kept small to limit Redis traffic).
+  useEffect(() => {
+    if (!streaming || !publishWeb) return
+    const relayCanvas = document.createElement('canvas')
+    relayCanvas.width = 854
+    relayCanvas.height = 480
+    const ctx = relayCanvas.getContext('2d')
+    if (!ctx) return
+    let inFlight = false
+
+    const relay = () => {
+      const video = videoRef.current
+      if (inFlight || !video || video.readyState < 2 || !video.videoWidth) return
+      const vw = video.videoWidth
+      const vh = video.videoHeight
+      const targetAspect = relayCanvas.width / relayCanvas.height
+      let sw = vw / zoom
+      let sh = vh / zoom
+      if (sw / sh > targetAspect) sw = sh * targetAspect
+      else sh = sw / targetAspect
+      ctx.drawImage(video, (vw - sw) / 2, (vh - sh) / 2, sw, sh, 0, 0, relayCanvas.width, relayCanvas.height)
+      inFlight = true
+      relayCanvas.toBlob(
+        (blob) => {
+          if (!blob) {
+            inFlight = false
+            return
+          }
+          fetch(`/api/live/frame?slot=${slot}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'image/jpeg' },
+            body: blob,
+          })
+            .then((res) => setWebError(!res.ok))
+            .catch(() => setWebError(true))
+            .finally(() => {
+              inFlight = false
+            })
+        },
+        'image/jpeg',
+        0.6,
+      )
+    }
+
+    const timer = window.setInterval(relay, 250)
+    return () => {
+      window.clearInterval(timer)
+      setWebError(false)
+    }
+  }, [streaming, publishWeb, zoom, slot])
+
+  const copyViewerLink = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(viewerUrl)
+      setLinkCopied(true)
+      window.setTimeout(() => setLinkCopied(false), 2000)
+    } catch {
+      setLinkCopied(false)
+    }
+  }, [viewerUrl])
 
   // Tally + ping polling (every 500 ms)
   useEffect(() => {
@@ -642,6 +714,47 @@ export function BroadcastCamera() {
               {'Tillämpa upplösning/fps på kameran'}
             </button>
           )}
+
+          <div className="flex flex-col gap-3 rounded-lg border border-zinc-700 bg-zinc-950 p-3">
+            <label className="flex items-center justify-between gap-3">
+              <span className="flex items-center gap-2 text-sm font-semibold">
+                <Globe className="size-4" aria-hidden />
+                {'Visa sändningen på webben'}
+              </span>
+              <input
+                type="checkbox"
+                checked={publishWeb}
+                onChange={(e) => setPublishWeb(e.target.checked)}
+                className="size-5 accent-red-600"
+              />
+            </label>
+            <p className="text-xs leading-relaxed text-zinc-400">
+              {'Tittare surfar in på länken nedan och ser kameran live (ca 4 bilder/s, 480p).'}
+            </p>
+            <div className="flex items-center gap-2">
+              <a
+                href={viewerUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="min-w-0 flex-1 truncate rounded border border-zinc-800 px-2 py-2 font-mono text-xs text-zinc-200 underline-offset-2 hover:underline"
+              >
+                {viewerUrl || '/live'}
+              </a>
+              <button
+                type="button"
+                onClick={() => void copyViewerLink()}
+                aria-label="Kopiera länk"
+                className="flex size-9 shrink-0 items-center justify-center rounded bg-zinc-800 hover:bg-zinc-700"
+              >
+                {linkCopied ? <Check className="size-4" aria-hidden /> : <Copy className="size-4" aria-hidden />}
+              </button>
+            </div>
+            {webError && (
+              <p role="alert" className="text-xs text-red-400">
+                {'Kunde inte skicka till webbsändningen.'}
+              </p>
+            )}
+          </div>
 
           <p className="text-xs leading-relaxed text-zinc-500">
             {'Frames skickas som JPEG via POST till '}
