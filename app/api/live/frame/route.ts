@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { liveFrameKey, parseSlot, redis, type LiveFrame } from '@/lib/redis'
 
-const MAX_FRAME_BYTES = 400 * 1024
+const MAX_FRAME_BYTES = 900 * 1024
 const FRAME_TTL_SECONDS = 15
 
 export async function POST(req: NextRequest) {

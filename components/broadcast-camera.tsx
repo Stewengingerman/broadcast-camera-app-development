@@ -36,6 +36,14 @@ const SLOT_LABELS: Record<Slot, string> = {
 
 const ZOOM_LEVELS = [1, 1.5, 2, 3] as const
 
+// Every frame is one Redis write plus one read per viewer, so higher presets use more of the Upstash quota.
+const WEB_QUALITY = {
+  low: { label: 'Låg', width: 854, height: 480, jpeg: 0.6, fps: 4 },
+  high: { label: 'Hög', width: 1280, height: 720, jpeg: 0.8, fps: 8 },
+  max: { label: 'Max', width: 1920, height: 1080, jpeg: 0.85, fps: 10 },
+} as const
+type WebQualityKey = keyof typeof WEB_QUALITY
+
 const TALLY_STYLES: Record<Tally, { frame: string; sign: string; label: string }> = {
   onair: {
     frame: 'border-red-600 shadow-[inset_0_0_60px_rgba(220,38,38,0.55)]',
@@ -87,6 +95,7 @@ export function BroadcastCamera() {
   const [measuredFps, setMeasuredFps] = useState(0)
   const [sendError, setSendError] = useState(false)
   const [publishWeb, setPublishWeb] = useState(true)
+  const [webQuality, setWebQuality] = useState<WebQualityKey>('high')
   const [webError, setWebError] = useState(false)
   const [viewerUrl, setViewerUrl] = useState('')
   const [linkCopied, setLinkCopied] = useState(false)
@@ -258,9 +267,10 @@ export function BroadcastCamera() {
   // Web relay: downscaled frames to this app's own /live page (kept small to limit Redis traffic).
   useEffect(() => {
     if (!streaming || !publishWeb) return
+    const preset = WEB_QUALITY[webQuality]
     const relayCanvas = document.createElement('canvas')
-    relayCanvas.width = 854
-    relayCanvas.height = 480
+    relayCanvas.width = preset.width
+    relayCanvas.height = preset.height
     const ctx = relayCanvas.getContext('2d')
     if (!ctx) return
     let inFlight = false
@@ -295,16 +305,16 @@ export function BroadcastCamera() {
             })
         },
         'image/jpeg',
-        0.6,
+        preset.jpeg,
       )
     }
 
-    const timer = window.setInterval(relay, 250)
+    const timer = window.setInterval(relay, Math.round(1000 / preset.fps))
     return () => {
       window.clearInterval(timer)
       setWebError(false)
     }
-  }, [streaming, publishWeb, zoom, slot])
+  }, [streaming, publishWeb, webQuality, zoom, slot])
 
   const copyViewerLink = useCallback(async () => {
     try {
@@ -729,8 +739,27 @@ export function BroadcastCamera() {
               />
             </label>
             <p className="text-xs leading-relaxed text-zinc-400">
-              {'Tittare surfar in på länken nedan och ser kameran live (ca 4 bilder/s, 480p).'}
+              {'Tittare surfar in på länken nedan och ser kameran live.'}
             </p>
+            <div role="radiogroup" aria-label="Webbkvalitet" className="grid grid-cols-3 gap-2">
+              {(Object.keys(WEB_QUALITY) as WebQualityKey[]).map((key) => {
+                const p = WEB_QUALITY[key]
+                const selected = webQuality === key
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    role="radio"
+                    aria-checked={selected}
+                    onClick={() => setWebQuality(key)}
+                    className={`flex flex-col items-center rounded border px-2 py-2 text-xs ${selected ? 'border-zinc-100 bg-zinc-100 text-zinc-950' : 'border-zinc-700 text-zinc-300 hover:bg-zinc-800'}`}
+                  >
+                    <span className="font-semibold">{p.label}</span>
+                    <span className="font-mono">{`${p.height}p · ${p.fps} fps`}</span>
+                  </button>
+                )
+              })}
+            </div>
             <div className="flex items-center gap-2">
               <a
                 href={viewerUrl}

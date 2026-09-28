@@ -7,7 +7,7 @@ import { Maximize, Radio, VideoOff } from 'lucide-react'
 type Slot = 2 | 3
 
 const SLOT_NAMES: Record<Slot, string> = { 2: 'Predikstol', 3: 'Lovsång' }
-const POLL_INTERVAL_MS = 250
+const POLL_INTERVAL_MS = 100
 const STALE_AFTER_MS = 5000
 
 interface StatusResponse {
