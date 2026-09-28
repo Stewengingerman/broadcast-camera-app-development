@@ -6,7 +6,8 @@ import { sermonBaseName } from '@/lib/audio'
 import { buildCues, parseSrt, parseSrtTimestamp, parseTimecode, srtTimestamp, toSrt, type Cue } from '@/lib/srt'
 import { transcribeRange } from '@/lib/transcription'
 import { useAiSettings } from '@/lib/api-keys'
-import { PROVIDERS, getProvider, isProviderId } from '@/lib/providers'
+import { PROVIDERS, getProvider, isProviderId, type ProviderId } from '@/lib/providers'
+import { CostEstimate } from './cost-estimate'
 
 type Status = 'idle' | 'running' | 'error'
 type EditableCue = Cue & { id: number }
@@ -35,6 +36,7 @@ export function TranscriptPanel({ buffer, start = 0, end = 0, onManageKeys }: Pr
   const [cues, setCues] = useState<EditableCue[]>([])
   const [openedName, setOpenedName] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [lastRun, setLastRun] = useState<{ provider: ProviderId; seconds: number } | null>(null)
   const abortRef = useRef<AbortController | null>(null)
   const srtInputRef = useRef<HTMLInputElement>(null)
 
@@ -46,6 +48,7 @@ export function TranscriptPanel({ buffer, start = 0, end = 0, onManageKeys }: Pr
   const fileName = openedName ?? `${sermonBaseName()}.srt`
   const srt = useMemo(() => toSrt(cues, shift), [cues, shift])
   const activeProvider = getProvider(provider)
+  const selectionSeconds = buffer ? (end > start ? end - start : buffer.duration) : 0
 
   const run = async () => {
     if (!buffer) return
@@ -65,6 +68,7 @@ export function TranscriptPanel({ buffer, start = 0, end = 0, onManageKeys }: Pr
       const built = buildCues(segments)
       if (built.length === 0) throw new Error('Inget tal hittades i ljudet.')
       setCues(withIds(built))
+      setLastRun({ provider, seconds: selectionSeconds })
       setOpenedName(null)
       setStatus('idle')
     } catch (err) {
@@ -231,6 +235,8 @@ export function TranscriptPanel({ buffer, start = 0, end = 0, onManageKeys }: Pr
               ))}
             </div>
           </div>
+
+          <CostEstimate provider={provider} seconds={selectionSeconds} lastRun={lastRun} />
         </>
       )}
 
