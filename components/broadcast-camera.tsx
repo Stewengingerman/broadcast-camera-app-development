@@ -102,6 +102,7 @@ export function BroadcastCamera() {
   const [linkCopied, setLinkCopied] = useState(false)
   const [obsUrl, setObsUrl] = useState('')
   const [obsCopied, setObsCopied] = useState(false)
+  const [obsHost, setObsHost] = useState('')
 
   const tally: Tally = demoTally ?? (streaming ? serverTally : 'offline')
   const tallyStyle = TALLY_STYLES[tally]
@@ -264,9 +265,25 @@ export function BroadcastCamera() {
   }, [streaming, resolution, fps, quality, zoom, slot, baseUrl])
 
   useEffect(() => {
+    setObsHost(window.localStorage.getItem('obs-host') ?? '')
+  }, [])
+
+  useEffect(() => {
+    const trimmed = obsHost.trim().replace(/\/+$/, '')
+    const origin = trimmed
+      ? /^https?:\/\//i.test(trimmed)
+        ? trimmed
+        : `http://${trimmed}`
+      : window.location.origin
     setViewerUrl(`${window.location.origin}/live?slot=${slot}`)
-    setObsUrl(`${window.location.origin}/obs?slot=${slot}`)
-  }, [slot])
+    setObsUrl(`${origin}/obs?slot=${slot}`)
+  }, [slot, obsHost])
+
+  const updateObsHost = useCallback((value: string) => {
+    setObsHost(value)
+    if (value.trim()) window.localStorage.setItem('obs-host', value.trim())
+    else window.localStorage.removeItem('obs-host')
+  }, [])
 
   const copyObsLink = useCallback(async () => {
     try {
@@ -810,6 +827,23 @@ export function BroadcastCamera() {
               <li>{'Klistra in länken nedan, sätt bredd 1920 och höjd 1080.'}</li>
               <li>{'Starta sändningen här på mobilen.'}</li>
             </ol>
+            <label className="flex flex-col gap-1 text-xs text-zinc-400">
+              {'Server-adress (IP:port, valfritt)'}
+              <input
+                type="text"
+                inputMode="url"
+                autoCapitalize="off"
+                autoCorrect="off"
+                spellCheck={false}
+                value={obsHost}
+                onChange={(e) => updateObsHost(e.target.value)}
+                placeholder="192.168.1.50:3000"
+                className="rounded border border-zinc-800 bg-zinc-900 px-2 py-2 font-mono text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-zinc-500 focus:outline-none"
+              />
+              <span className="leading-relaxed text-zinc-500">
+                {'Lämna tomt för att använda nuvarande adress. Ange datorns lokala IP om appen körs på ditt nätverk.'}
+              </span>
+            </label>
             <div className="flex items-center gap-2">
               <code className="min-w-0 flex-1 truncate rounded border border-zinc-800 px-2 py-2 font-mono text-xs text-zinc-200">
                 {obsUrl || '/obs'}
