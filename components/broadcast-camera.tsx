@@ -10,6 +10,7 @@ import {
   Globe,
   Grid3x3,
   MicOff,
+  MonitorPlay,
   Play,
   Settings,
   Square,
@@ -99,6 +100,8 @@ export function BroadcastCamera() {
   const [webError, setWebError] = useState(false)
   const [viewerUrl, setViewerUrl] = useState('')
   const [linkCopied, setLinkCopied] = useState(false)
+  const [obsUrl, setObsUrl] = useState('')
+  const [obsCopied, setObsCopied] = useState(false)
 
   const tally: Tally = demoTally ?? (streaming ? serverTally : 'offline')
   const tallyStyle = TALLY_STYLES[tally]
@@ -262,7 +265,18 @@ export function BroadcastCamera() {
 
   useEffect(() => {
     setViewerUrl(`${window.location.origin}/live?slot=${slot}`)
+    setObsUrl(`${window.location.origin}/obs?slot=${slot}`)
   }, [slot])
+
+  const copyObsLink = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(obsUrl)
+      setObsCopied(true)
+      window.setTimeout(() => setObsCopied(false), 2000)
+    } catch {
+      setObsCopied(false)
+    }
+  }, [obsUrl])
 
   // Web relay: downscaled frames to this app's own /live page (kept small to limit Redis traffic).
   useEffect(() => {
@@ -781,6 +795,37 @@ export function BroadcastCamera() {
             {webError && (
               <p role="alert" className="text-xs text-red-400">
                 {'Kunde inte skicka till webbsändningen.'}
+              </p>
+            )}
+          </div>
+
+          <div className="flex flex-col gap-3 rounded-lg border border-zinc-700 bg-zinc-950 p-3">
+            <span className="flex items-center gap-2 text-sm font-semibold">
+              <MonitorPlay className="size-4" aria-hidden />
+              {'Koppla till OBS'}
+            </span>
+            <ol className="flex list-decimal flex-col gap-1 pl-4 text-xs leading-relaxed text-zinc-400">
+              <li>{'Slå på "Visa sändningen på webben" ovan och välj Max för bäst bild.'}</li>
+              <li>{'I OBS: Källor → + → Webbläsare (Browser).'}</li>
+              <li>{'Klistra in länken nedan, sätt bredd 1920 och höjd 1080.'}</li>
+              <li>{'Starta sändningen här på mobilen.'}</li>
+            </ol>
+            <div className="flex items-center gap-2">
+              <code className="min-w-0 flex-1 truncate rounded border border-zinc-800 px-2 py-2 font-mono text-xs text-zinc-200">
+                {obsUrl || '/obs'}
+              </code>
+              <button
+                type="button"
+                onClick={() => void copyObsLink()}
+                aria-label="Kopiera OBS-länk"
+                className="flex size-9 shrink-0 items-center justify-center rounded bg-zinc-800 hover:bg-zinc-700"
+              >
+                {obsCopied ? <Check className="size-4" aria-hidden /> : <Copy className="size-4" aria-hidden />}
+              </button>
+            </div>
+            {!publishWeb && (
+              <p role="alert" className="text-xs text-amber-400">
+                {'Webbsändningen är avstängd – OBS får ingen bild.'}
               </p>
             )}
           </div>
